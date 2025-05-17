@@ -60,19 +60,19 @@ jobs:
         docker build -t kuberay/apiserver:${{ steps.vars.outputs.sha_short }} -f apiserver/Dockerfile .
         docker save -o /tmp/apiserver.tar kuberay/apiserver:${{ steps.vars.outputs.sha_short }}
 
-    - name: Log in to Quay.io
+    - name: Log in to GitHub Container Registry
       uses: docker/login-action@v2
       with:
-        registry: quay.io
-        username: ${{ secrets.QUAY_USERNAME }}
-        password: ${{ secrets.QUAY_ROBOT_TOKEN }}
+        registry: ghcr.io
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Push Apiserver to Quay.io
+    - name: Push Apiserver to GitHub Container Registry
       run: |
-        docker image tag kuberay/apiserver:${{ steps.vars.outputs.sha_short }} quay.io/kuberay/apiserver:${{ steps.vars.outputs.sha_short }};
-        docker push quay.io/kuberay/apiserver:${{ steps.vars.outputs.sha_short }};
-        docker image tag kuberay/apiserver:${{ steps.vars.outputs.sha_short }} quay.io/kuberay/apiserver:${{ env.tag }};
-        docker push quay.io/kuberay/apiserver:${{ env.tag }}
+        docker image tag kuberay/apiserver:${{ steps.vars.outputs.sha_short }} ghcr.io/${{ github.repository_owner }}/kuberay/apiserver:${{ steps.vars.outputs.sha_short }};
+        docker push ghcr.io/${{ github.repository_owner }}/kuberay/apiserver:${{ steps.vars.outputs.sha_short }};
+        docker image tag kuberay/apiserver:${{ steps.vars.outputs.sha_short }} ghcr.io/${{ github.repository_owner }}/kuberay/apiserver:${{ env.tag }};
+        docker push ghcr.io/${{ github.repository_owner }}/kuberay/apiserver:${{ env.tag }}
 
   release_operator_image:
     env:
@@ -130,12 +130,12 @@ jobs:
         IMG=kuberay/operator:${{ steps.vars.outputs.sha_short }} make docker-image
       working-directory: ${{env.working-directory}}
 
-    - name: Log in to Quay.io
+    - name: Log in to GitHub Container Registry
       uses: docker/login-action@v2
       with:
-        registry: quay.io
-        username: ${{ secrets.QUAY_USERNAME }}
-        password: ${{ secrets.QUAY_ROBOT_TOKEN }}
+        registry: ghcr.io
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.GITHUB_TOKEN }}
 
     # Build operators inside the gh runner vm directly and then copy the go binaries to docker images using the Dockerfile.buildx
     - name: Build linux/amd64 Operator go binary
@@ -163,7 +163,7 @@ jobs:
       uses: docker/build-push-action@v5
       env:
         PUSH: true
-        REPO_ORG: kuberay
+        REPO_ORG: ${{ github.repository_owner }}/kuberay
         REPO_NAME: operator
       with:
         platforms: linux/amd64,linux/arm64
@@ -172,8 +172,8 @@ jobs:
         push: ${{env.PUSH}}
         provenance: false
         tags: |
-          quay.io/${{env.REPO_ORG}}/${{env.REPO_NAME}}:${{ steps.vars.outputs.sha_short }}
-          quay.io/${{env.REPO_ORG}}/${{env.REPO_NAME}}:${{ env.tag }}
+          ghcr.io/${{env.REPO_ORG}}/${{env.REPO_NAME}}:${{ steps.vars.outputs.sha_short }}
+          ghcr.io/${{env.REPO_ORG}}/${{env.REPO_NAME}}:${{ env.tag }}
 
   release_dashboard_image:
     env:
@@ -204,12 +204,12 @@ jobs:
     - name: Set up Docker
       uses: docker-practice/actions-setup-docker@master
 
-    - name: Log in to Quay.io
+    - name: Log in to GitHub Container Registry
       uses: docker/login-action@v2
       with:
-        registry: quay.io
-        username: ${{ secrets.QUAY_USERNAME }}
-        password: ${{ secrets.QUAY_ROBOT_TOKEN }}
+        registry: ghcr.io
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Build and push Dashboard image
       uses: docker/build-push-action@v4
@@ -218,8 +218,8 @@ jobs:
         file: ${{ env.working-directory }}/Dockerfile
         push: true
         tags: |
-          quay.io/kuberay/dashboard:${{ steps.vars.outputs.sha_short }}
-          quay.io/kuberay/dashboard:${{ env.tag }}
+          ghcr.io/${{ github.repository_owner }}/kuberay/dashboard:${{ steps.vars.outputs.sha_short }}
+          ghcr.io/${{ github.repository_owner }}/kuberay/dashboard:${{ env.tag }}
         labels: |
           GIT_COMMIT=${{ steps.vars.outputs.sha_short }}
         provenance: false
