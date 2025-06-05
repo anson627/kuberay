@@ -169,7 +169,6 @@ jobs:
         REPO_ORG: ${{ github.repository_owner }}/kuberay
         REPO_NAME: operator
       with:
-        platforms: linux/amd64,linux/arm64
         context: ${{env.working-directory}}
         file: ${{env.working-directory}}/Dockerfile.buildx
         push: ${{env.PUSH}}
@@ -238,3 +237,73 @@ jobs:
         labels: |
           GIT_COMMIT=${{ steps.vars.outputs.sha_short }}
         provenance: false
+
+  release_kwok_image:
+    env:
+      working-directory: ./kwok
+    name: Release Kwok Docker Image
+    runs-on: ubuntu-22.04
+    steps:
+
+    - name: Error if not a tag
+      uses: actions/github-script@v7
+      if: ${{ ! startsWith(github.ref, 'refs/tags/') }}
+      with:
+        script: core.setFailed('This action can only be run on tags')
+
+    - name: Set up Go
+      uses: actions/setup-go@v3
+      with:
+        go-version: v1.24
+
+    - name: Check out code into the Go module directory
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+
+    - name: Extract tag
+      id: tag
+      run: echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
+    - name: Install kubebuilder
+      run: |
+        wget https://github.com/kubernetes-sigs/kubebuilder/releases/download/v3.0.0/kubebuilder_$(go env GOOS)_$(go env GOARCH)
+        sudo mv kubebuilder_$(go env GOOS)_$(go env GOARCH) /usr/local/bin/kubebuilder
+
+    - name: Get revision SHA
+      id: vars
+      run: echo "::set-output name=sha_short::$(git rev-parse --short HEAD)"
+
+    - name: Get dependencies
+      run: go mod download
+      working-directory: ${{env.working-directory}}
+
+    - name: Build
+      run: go build ./...
+      working-directory: ${{env.working-directory}}
+
+    - name: Test
+      run: go test ./pkg/... ./cmd/... -race -parallel 4
+      working-directory: ${{env.working-directory}}
+
+    - name: Set up Docker
+      uses: docker/setup-docker-action@v4
+
+    - name: Build Docker Image - Kwok
+      run: |
+        docker build -t kuberay/kwok:${{ steps.vars.outputs.sha_short }} -f kwok/Dockerfile .
+        docker save -o /tmp/kwok.tar kuberay/kwok:${{ steps.vars.outputs.sha_short }}
+
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@v2
+      with:
+        registry: ghcr.io
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Push Kwok to GitHub Container Registry
+      run: |
+        docker image tag kuberay/kwok:${{ steps.vars.outputs.sha_short }} ghcr.io/${{ github.repository_owner }}/kuberay/kwok:${{ steps.vars.outputs.sha_short }};
+        docker push ghcr.io/${{ github.repository_owner }}/kuberay/kwok:${{ steps.vars.outputs.sha_short }};
+        docker image tag kuberay/kwok:${{ steps.vars.outputs.sha_short }} ghcr.io/${{ github.repository_owner }}/kuberay/kwok:${{ env.tag }};
+        docker push ghcr.io/${{ github.repository_owner }}/kuberay/kwok:${{ env.tag }}
